@@ -35,6 +35,10 @@ def recv_loop(client_sock: socket.socket, addr, clients, clients_lock):
                 for s in dead:
                     clients.discard(s)
                     try:
+                        try:
+                            s.shutdown(socket.SHUT_RDWR)
+                        except OSError:
+                            pass
                         s.close()
                     except OSError:
                         pass
@@ -44,6 +48,10 @@ def recv_loop(client_sock: socket.socket, addr, clients, clients_lock):
         with clients_lock:
             clients.discard(client_sock)
         try:
+            try:
+                client_sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             client_sock.close()
         except OSError:
             pass
@@ -52,7 +60,10 @@ def recv_loop(client_sock: socket.socket, addr, clients, clients_lock):
 
 def create_listening_socket(host: str, port: int) -> socket.socket:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         s.bind((host, port))
     except OSError as e:
@@ -63,7 +74,7 @@ def create_listening_socket(host: str, port: int) -> socket.socket:
 
 
 def main():
-    host = input("IP сервера (пусто = 0.0.0.0): ").strip() or "0.0.0.0"
+    host = input("IP сервера (пусто = 127.0.0.1): ").strip() or "127.0.0.1"
 
     while True:
         port_str = input("Порт сервера: ").strip()
@@ -106,11 +117,19 @@ def main():
         with clients_lock:
             for s in list(clients):
                 try:
+                    try:
+                        s.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
                     s.close()
                 except OSError:
                     pass
             clients.clear()
         try:
+            try:
+                server_sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             server_sock.close()
         except OSError:
             pass
